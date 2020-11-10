@@ -1,138 +1,177 @@
-// const fitness_threshold = 4
-
 class Population {
 
-    constructor(inputCount, outputCount, genomeCount) {
-        this.inputCount = inputCount
-        this.outputCount = outputCount
-        this.genomeCount = genomeCount
+    constructor({ inputNumber, outputNumber, genomeNumber, fitnessThreshold }) {
+        this.inputNumber = inputNumber
+        this.outputNumber = outputNumber
+        this.genomeNumber = genomeNumber
+        this.fitnessThreshold = fitnessThreshold
+        this.nextInnovationID = 0
     }
 
     run(fitnessFunction, generations) {
         this.fitnessFunction = fitnessFunction
 
         this.genomes = []
-        for (let i = 0; i < this.genomeCount; i++) this.genomes.push(new Genome(this))
+        for (let i = 0; i < this.genomeNumber; i++) this.genomes.push(new Genome(this, this.inputNumber, this.outputNumber))
 
+        let winner
+        if (generations <= 0) generations = Infinity
         for (let n = 0; n < generations; n++) {
             this.fitnessFunction(this.genomes)
             this.genomes.sort((a, b) => { return a.fitness > b.fitness ? -1 : 1 })
-            console.log(n, this.genomes[0].fitness)
 
+            winner = this.genomes[0].toJSON()
+            if (this.genomes[0].fitness >= this.fitnessThreshold) break
 
-            for (let i = 4; i < this.genomes.length; i++) {
-                let index = random(0, 3)
-                this.genomes[i].nodes = {}
-                this.genomes[i].connections = {}
-                for (let j in this.genomes[index].nodes) {
-                    let n = new Node(this.genomes[i], this.genomes[index].nodes[j].type)
-                    n.index = this.genomes[index].nodes[j].index
-                    n.generation = this.genomes[index].nodes[j].generation + 1
-                    this.genomes[i].nodes[j] = n
-                }
-                for (let j in this.genomes[index].connections) {
-                    this.genomes[i].connections[j] = []
-                    for (let k = 0; k < this.genomes[index].connections[j].length; k++) {
-                        this.genomes[i].connections[j].push({ index: this.genomes[index].connections[j][k].index, weight: this.genomes[index].connections[j][k].weight })
-                    }
-                }
+            for (let i = 2; i < this.genomeNumber; i++) {
+                let a = new Genome(this, this.inputNumber, this.outputNumber)
+                let b = new Genome(this, this.inputNumber, this.outputNumber)
+                a.loadJSON(this.genomes[0].toJSON())
+                b.loadJSON(this.genomes[1].toJSON())
+                this.genomes[i] = a.crossover(b)
             }
 
             this.nextGen()
         }
 
-        return this.genomes[0]
+        let r = new Genome(this, this.inputNumber, this.outputNumber)
+        r.loadJSON(winner)
+        return r
     }
 
     nextGen() {
-        for (let i = 0; i < this.genomeCount; i++) this.genomes[i].nextGen()
+        for (let i = 0; i < this.genomeNumber; i++) this.genomes[i].nextGen()
     }
 
 }
 
 class Genome {
-    constructor(population) {
+    constructor(population, inputNumber, outputNumber) {
         this.population = population
-        this.connections = {} // {to: [{index:from,weigth:x}]}
+        this.inputNumber = inputNumber
+        this.outputNumber = outputNumber
+        this.connections = []
         this.nodes = {}
-        this.nodeID = 0
+        this.nextNodeID = 0
         this.fitness = 0
-        this.generation = 0
 
-        for (let i = 0; i < this.population.inputCount; i++) {
-            let n = new Node(this, "input")
+        for (let i = 0; i < inputNumber; i++) {
+            let n = new Node(this.nextNodeID++, "input")
             this.nodes[n.index] = n
         }
-        for (let i = 0; i < this.population.outputCount; i++) {
-            let n = new Node(this, "output")
+        for (let o = 0; o < outputNumber; o++) {
+            let n = new Node(this.nextNodeID++, "output")
             this.nodes[n.index] = n
-            if (!this.connections[n.index]) this.connections[n.index] = []
-            for (let j = 0; j < this.population.inputCount; j++) {
-                this.connections[n.index].push({ index: this.nodes[j].index, weight: Math.random() })
+
+            for (let i = 0; i < inputNumber; i++) {
+                this.connections.push(new Connection({ from: this.nodes[i].index, to: n.index, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ }))
             }
         }
     }
 
     nextGen() {
-        // ++this.generation
+        if (Math.random() < 0.8) this.mutateWeight()
+        if (Math.random() < 0.25) this.addConnection()
+        if (Math.random() < 0.05) this.addNode()
+    }
 
-        for (let index in this.connections) {
-            for (let i = 0; i < this.connections[index].length; i++) {
-                if (Math.random() < 0.2) {
-                    this.connections[index][i].weight += this.connections[index][i].weight * (Math.random() - 0.5) * 3 + (Math.random() - 0.5);
-                }
+    mutateWeight() {
+        for (let i = 0; i < this.connections.length; i++) {
+            if (Math.random() < 0.1) {
+                this.connections[i].weight = neatRandom(-1, 1)
+            } else {
+                this.connections[i].weight += this.connections[i].weight * (Math.random() - 0.5) * 3 + (Math.random() - 0.5)
             }
         }
-        for (let index in this.nodes) {
-            if (Math.random() < 0.02 && this.nodes[index].type != "input") {
-                let n = new Node(this, "node")
-                this.nodes[n.index] = n
-
-                let r = this.connections[index].splice(0, 1)
-                this.connections[index].push({ index: n.index, weight: Math.random() })
-                this.connections[n.index] = [r[0]]
+    }
+    crossover(b) {
+        this.connections.map(f => {
+            let c = b.connections.filter(t => t.innovation == f.innovation)
+            if (c.length > 0) {
+                if ((!this.enabled || !c.enabled) && Math.random() < 0.75) {
+                    this.enabled = false
+                } else {
+                    this.enabled = true
+                }
             }
+        })
+        return this
+    }
+    addConnection() {
+        let from = Object.keys(this.nodes)
+        let to = Object.keys(this.nodes)
+        let found = false
+        from.map(f => {
+            if (found || this.nodes[f].type == "output") return
+            to.map(t => {
+                if (found || f == t || this.nodes[t].type == "input") return
+                if (this.connections.some(c => (c.from == f && c.to == t) || (c.from == t && c.to == f))) return
+
+                found = true
+                this.connections.push(new Connection({ from: f < t ? f : t, to: f < t ? t : f, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ }))
+            })
+        })
+    }
+    addNode() {
+        for (let index in this.nodes) {
+            if (this.nodes[index].type == "input") continue
+
+            let n = new Node(this.nextNodeID++, "hidden")
+            this.nodes[n.index] = n
+
+            let c = this.connections[random(0, this.connections.length - 1)]
+            c.enabled = false
+            this.connections.push(new Connection({ from: c.from, to: n.index, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ }))
+            this.connections.push(new Connection({ from: n.index, to: c.to, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ }))
+            break
         }
     }
 
     toJSON() {
         let js = {
             nodes: {},
-            connections: {},
+            connections: [],
         }
-        for (let i in this.nodes) js.nodes[i] = { type: this.nodes[i].type, generation: this.nodes[i].generation }
-        for (let i in this.connections) js.connections[i] = this.connections[i]
+        for (let i in this.nodes) js.nodes[i] = { type: this.nodes[i].type }
+        js.connections = [...this.connections.filter(c => c.enabled).map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
         return js
+    }
+    clone() {
+        let g = new Genome(this.population, this.inputNumber, this.outputNumber)
+        g.nextNodeID = this.nextNodeID
+        g.fitness = this.fitness
+        for (let i in this.nodes) g.nodes[i] = { type: this.nodes[i].type }
+        g.connections = [...this.connections.map(x => x.clone())]
+        return g
     }
     loadJSON(js) {
         for (let i in js.nodes) {
-            let n = new Node(this, js.nodes[i].type)
-            n.index = i
-            n.generation = js.nodes[i].generation
-            if (this.nodeID <= n.index) this.nodeID = n.index + 1
+            let n = new Node(i, js.nodes[i].type)
             this.nodes[i] = n
+            if (this.nextNodeID <= n.index) this.nextNodeID = parseInt(n.index) + 1
         }
-        for (let i in js.connections) {
-            this.connections[i] = js.connections[i]
-        }
+        this.connections = [...js.connections.map(x => new Connection(x))]
     }
 }
 
 class Connection {
-    constructor(from, to) {
-        this.weight = Math.random()
+    constructor({ from, to, weight, enabled, innovation }) {
+        this.weight = weight
         this.from = from
         this.to = to
+        this.innovation = innovation
+        this.enabled = enabled
+    }
+    clone() {
+        return new Connection({ from: this.from, to: this.to, weight: this.weight, enabled: this.enabled, innovation: this.innovation })
     }
 }
 
 class Node {
-    constructor(genome, type) {
-        this.genome = genome
-        this.index = genome.nodeID++
-        this.value = 0
+    constructor(index, type) {
+        this.index = index
         this.type = type
-        this.generation = this.genome.generation
+        this.value = 0
     }
 }
 
@@ -148,66 +187,45 @@ class FeedForwardNetwork {
     activate(inputs) {
         let outputs = []
 
-        // init
-        for (let i in this.genome.nodes) {
-            this.genome.nodes[i].value = null
-            this.genome.nodes[i].tmp = []
-        }
         for (let i = 0; i < inputs.length; i++) {
             this.genome.nodes[i].value = inputs[i]
         }
 
-        let need = []
-        for (var i in this.genome.connections) {
-            for (var j = 0; j < this.genome.connections[i].length; j++) need.push([this.genome.connections[i][j].index, i, this.genome.connections[i][j].weight])
+        let connections = this.genome.connections
+        for (let n in this.genome.nodes) {
+            if (this.genome.nodes[n].type != "hidden") continue
+            this.genome.nodes[n].value = 0
+
+            connections.filter(c => c.to == this.genome.nodes[n].index && c.enabled).map(c => {
+                this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
+            })
+
+            this.genome.nodes[n].value = this.sigmoid(this.genome.nodes[n].value)
         }
-        // console.log(need)
-        let from, to, weight
-        while (need.length > 0) {
-            for (let i = 0; i < need.length; i++) {
-                from = need[i][0]
-                to = need[i][1]
-                weight = need[i][2]
-                if (this.genome.nodes[from].value != null) {
-                    need.splice(i, 1)
-                    this.genome.nodes[to].tmp.push(this.genome.nodes[from].value * weight)
-                    if (this.genome.nodes[to].tmp.length == this.genome.connections[to].length) {
-                        this.genome.nodes[to].value = 0
-                        this.genome.nodes[to].tmp.map(x => { this.genome.nodes[to].value += x })
-                        this.genome.nodes[to].value = this.sigmoid(this.genome.nodes[to].value)
-                        delete this.genome.nodes[to].tmp
-                    }
-                }
-            }
+        for (let n in this.genome.nodes) {
+            if (this.genome.nodes[n].type != "output") continue
+            this.genome.nodes[n].value = 0
+
+            connections.filter(c => c.to == n && c.enabled).map(c => {
+                this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
+            })
+            this.genome.nodes[n].value = this.sigmoid(this.genome.nodes[n].value)
         }
 
-        // calc
         for (let i in this.genome.nodes) {
             if (this.genome.nodes[i].type != "output") continue
 
             outputs.push(this.genome.nodes[i].value)
         }
 
-        // console.log("output:", outputs)
         return outputs
-    }
-
-    getValue(node) {
-        if (node.type == "input") {
-            // if (node.sum == null) node.sum = node.value * node.weight
-            return node.value
-        }
-
-        let sum = 0
-        let connect = this.genome.connections[node.index]
-        for (let i = 0; i < connect.length; i++) {
-            sum += this.getValue(this.genome.nodes[connect[i].index]) * connect[i].weight
-        }
-        return this.sigmoid(sum)
     }
 }
 function random(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min);
+}
+function neatRandom(min, max) {
+    return min + Math.random() * (max - min);
 }
 
 const xor = [
@@ -215,64 +233,54 @@ const xor = [
     { inputs: [0, 1], outputs: [1] },
     { inputs: [1, 0], outputs: [1] },
     { inputs: [1, 1], outputs: [0] },
+
+    // { inputs: [0.3, 0.4], outputs: [0.5] },
+    // { inputs: [0.4, 0.5], outputs: [0.64] },
+    // { inputs: [0.5, 0.6], outputs: [0.78] },
+    // { inputs: [0.6, 0.7], outputs: [0.92] },
 ]
+let count = 0
 function fitnessFunction(genomes) {
-    let winnerFitness, winnerGenomeID
+    console.log("gen:", count++)
     genomes.forEach((genome, genomeID) => {
-        let fitness = 4
+        genome.fitness = 0
+        let score = 0
         const net = new FeedForwardNetwork(genome)
         for (let i in xor) {
             outputs = net.activate(xor[i].inputs)
-            fitness -= Math.pow(outputs[0] - xor[i].outputs[0], 2)
+            let diff = Math.pow(outputs[0] - xor[i].outputs[0], 2)
+            if (diff < Math.pow(0.1, 2)) score++
         }
-        genome.fitness = fitness
-
-        if (winnerFitness == undefined || fitness > winnerFitness) {
-            winnerFitness = fitness
-            winnerGenomeID = genomeID
-        }
+        genome.fitness = score
     })
-    // console.log(winnerFitness)
-    return winnerGenomeID
 }
 
 
-const p = new Population(2, 1, 100)
-let winner = p.run(fitnessFunction, 100)
+const p = new Population({ inputNumber: 2, outputNumber: 1, genomeNumber: 50, fitnessThreshold: 4 })
+
+let winner = p.run(fitnessFunction, -1)
 console.log(winner.toJSON())
 console.log(winner.fitness)
-
-const net = new FeedForwardNetwork(winner)
-for (let i in xor) {
-    outputs = net.activate(xor[i].inputs)
-    console.log(xor[i].inputs, outputs)
+{
+    const net = new FeedForwardNetwork(winner)
+    for (let i in xor) {
+        outputs = net.activate(xor[i].inputs)
+        console.log(xor[i].inputs, xor[i].outputs, outputs)
+    }
 }
 
-// winner = new Genome(p)
-// winner.loadJSON({
-//     nodes: {
-//         '0': { type: 'input' },
-//         '1': { type: 'input' },
-//         '4': { type: 'node' },
-//         '5': { type: 'node' },
-//         '6': { type: 'node' },
-//         '7': { type: 'node' },
-//         '2': { type: 'output' },
-//         '3': { type: 'output' }
-//     },
-//     connections: {
-//         '2': [{ index: 7, weight: 0.1 }],
-//         '3': [{ index: 6, weight: 0.3 }, { index: 7, weight: 0.4 }],
-//         '7': [{ index: 4, weight: 0.3 }, { index: 5, weight: 0.4 }, { index: 6, weight: 0.4 }],
-//         '4': [{ index: 0, weight: 0.3 }],
-//         '5': [{ index: 0, weight: 0.3 }, { index: 1, weight: 0.3 }],
-//         '6': [{ index: 1, weight: 0.3 }],
+// {
+//     console.log("")
+//     winner2 = new Genome(p, p.inputNumber, p.outputNumber)
+//     winner2.loadJSON(winner.toJSON())
+//     const net3 = new FeedForwardNetwork(winner2)
+//     for (let i in xor) {
+//         outputs = net3.activate(xor[i].inputs)
+//         console.log(xor[i].inputs, outputs)
 //     }
-// })
-// console.log(winner.toJSON())
-// const net = new FeedForwardNetwork(winner)
-// for (let i in xor) {
-//     outputs = net.activate(xor[i].inputs)
-//     console.log(xor[i].inputs, outputs)
+//     let inputs = [0.1, 0.2]
+//     console.log(inputs, [0.2236], net3.activate(inputs))
+//     inputs = [0.5, 0.5]
+//     console.log(inputs, [0.7071], net3.activate(inputs))
 // }
-// console.log(winner.fitness)
+
