@@ -34,7 +34,7 @@ function Neat() {
                     if (Math.random() < 0.001) {
                         this.connections[i].weight = neatRandom(-1, 1)
                     } else if (Math.random() < 0.2) {
-                        this.connections[i].weight += neatRandom(-1, 1)
+                        this.connections[i].weight += neatRandom(-1, 1) * 10
                     }
                 }
             },
@@ -93,7 +93,7 @@ function Neat() {
                 return js
             },
             clone() {
-                let g = Genome({ population: this, inputNumber: this.population.inputNumber, outputNumber: this.population.outputNumber })
+                let g = Genome({ population: this.population, inputNumber: this.population.inputNumber, outputNumber: this.population.outputNumber })
                 g.loadJSON(this.toJSON())
                 g.fitness = this.fitness
                 return g
@@ -266,7 +266,7 @@ if (typeof window == "undefined") {
         { // run
             let winner = await pop.run(fitnessFunction, -1)
             js = winner.toJSON()
-            // console.log(winner.toJSON())
+            console.log(JSON.stringify(winner.toJSON()))
             console.log("[winner] nodes:", Object.keys(js.nodes).length, "connects:", js.connections.length)
         }
 
