@@ -10,7 +10,7 @@ function Neat() {
             fitness: 0,
             init() {
                 for (let i = 0; i < this.population.inputNumber; i++) {
-                    this.nodes[this.nextNodeID] = { index: this.nextNodeID, type: "input", value: 0 };
+                    this.nodes[this.nextNodeID] = { index: this.nextNodeID, type: "input", value: Math.random() };
                     this.nextNodeID++
                 }
                 for (let o = 0; o < this.population.outputNumber; o++) {
@@ -23,18 +23,18 @@ function Neat() {
                 }
             },
 
-            nextGeneration() {
-                this.mutateWeight()
-                if (Math.random() < 0.5) this.addNode()
-                if (Math.random() < 0.5) this.addConnection()
+            nextGeneration(n) {
+                this.mutateWeight(n)
+                if (Math.random() < (n + 1) / 10 * 0.2) this.addNode()
+                if (Math.random() < (n + 1) / 10 * 0.2) this.addConnection()
             },
 
-            mutateWeight() {
+            mutateWeight(n) {
                 for (let i = 0; i < this.connections.length; i++) {
                     if (Math.random() < 0.001) {
                         this.connections[i].weight = neatRandom(-1, 1)
-                    } else if (Math.random() < 0.2) {
-                        this.connections[i].weight += neatRandom(-1, 1) * 10
+                    } else if (Math.random() < (n + 1) / 10 * 0.2) {
+                        this.connections[i].weight += neatRandom(-1, 1) * (n + 1)
                     }
                 }
             },
@@ -123,7 +123,7 @@ function Neat() {
             if (genomeNumber < 5) genomeNumber = 5
 
             return {
-                inputNumber: inputNumber,
+                inputNumber: inputNumber + 1,
                 outputNumber: outputNumber,
                 genomeNumber: genomeNumber,
                 fitnessThreshold: fitnessThreshold,
@@ -136,9 +136,10 @@ function Neat() {
 
                     if (generations <= 0) generations = Infinity
                     for (let n = 0; n < generations; n++) {
-                        await fitnessFunction(this.genomes, n)
+                        await fitnessFunction(this.genomes, n, this)
 
-                        this.getWinners(4)
+                        this.getWinners(1)
+                        if (n + 1 == generations) break
                         if (this.fitnessThreshold != undefined && this.winners[0].fitness >= this.fitnessThreshold) break
                         this.next()
                     }
@@ -157,32 +158,39 @@ function Neat() {
                 },
 
                 getWinners(n) {
-                    if (this.winners.length > 1) this.winners.splice(1)
-                    this.genomes.sort((a, b) => { return a.fitness > b.fitness ? -1 : 1 })
-                    for (let i = 0; i < n; i++)  this.winners.push(this.genomes[i].clone())
-                    this.winners.sort((a, b) => { return a.fitness > b.fitness ? -1 : 1 })
-                    this.winners.splice(n)
+                    const mysort = (a, b) => {
+                        if (a.fitness == b.fitness) {
+                            if (a.nextNodeID == b.nextNodeID) {
+                                if (a.connections.length == b.connections.length) return Math.random() - Math.random()
+                                return a.connections.length - b.connections.length
+                            }
+                            return a.nextNodeID - b.nextNodeID
+                        }
+                        return b.fitness - a.fitness
+                    }
+                    if (this.winners.length > n) this.winners.splice(n)
+                    this.genomes.sort(mysort)
+                    for (let i = 0; i < 4; i++)  this.winners.push(this.genomes[i].clone())
+                    this.winners.sort(mysort)
+                    this.winners.splice(4)
                     return this.winners
                 },
 
                 next() {
                     for (let i = 0; i < this.genomeNumber; i++) {
                         let a, b
-                        if (i < 2) {
+                        if (i < 4) {
                             a = this.winners[0].clone()
                             b = this.winners[1].clone()
                             this.genomes[i] = a.crossover(b)
-                        } else if (i < this.genomeNumber - 3) {
+                        } else if (i < this.genomeNumber - 2) {
                             a = this.winners[random(0, 3)].clone()
                             b = this.winners[random(0, 3)].clone()
                             this.genomes[i] = a.crossover(b)
-                        } else if (i < this.genomeNumber - 1) {
-                            this.genomes[i] = this.winners[random(0, 3)].clone()
                         } else {
-                            this.genomes[i] = Genome({ population: this, inputNumber: this.inputNumber, outputNumber: this.outputNumber })
-                            this.genomes[i].init()
+                            this.genomes[i] = this.winners[random(0, 3)].clone()
                         }
-                        this.genomes[i].nextGeneration()
+                        this.genomes[i].nextGeneration(i)
                     }
                 }
             }
@@ -231,53 +239,4 @@ function Neat() {
     }
 }
 
-// test
-if (typeof window == "undefined") {
-    const data = [
-        { inputs: [0, 0], outputs: [0] },
-        { inputs: [0, 1], outputs: [1] },
-        { inputs: [1, 0], outputs: [1] },
-        { inputs: [1, 1], outputs: [0] },
-    ]
-
-    function fitnessFunction(genomes, generation) {
-        genomes.forEach(genome => {
-            genome.fitness = 4
-            const ff = net.FeedForwardNetwork(genome)
-            for (let i in data) {
-                outputs = ff.activate(data[i].inputs)
-                genome.fitness -= Math.pow(outputs[0] - data[i].outputs[0], 4)
-            }
-        })
-        if (generation % 10 == 0) {
-            genomes.sort((a, b) => { return a.fitness > b.fitness ? -1 : 1 })
-            console.log("generation:", generation,
-                "nodes:", Object.keys(genomes[0].nodes).length,
-                "connections:", genomes[0].connections.length,
-                "maxFitness:", genomes[0].fitness)
-        }
-    }
-
-    const net = Neat()
-    const pop = net.Population({ inputNumber: data[0].inputs.length, outputNumber: data[0].outputs.length, genomeNumber: 100, fitnessThreshold: 4 })
-    let js
-
-    (async _ => {
-        { // run
-            let winner = await pop.run(fitnessFunction, -1)
-            js = winner.toJSON()
-            console.log(JSON.stringify(winner.toJSON()))
-            console.log("[winner] nodes:", Object.keys(js.nodes).length, "connects:", js.connections.length)
-        }
-
-        { // test
-            let genome = net.Genome({ population: pop })
-            genome.loadJSON(js)
-            const ff = net.FeedForwardNetwork(genome)
-            for (let i in data) {
-                outputs = ff.activate(data[i].inputs)
-                console.log(data[i].inputs, "=>", data[i].outputs, "~", outputs.map(x => x.toFixed(5)))
-            }
-        }
-    })()
-} 
+if (typeof exports != "undefined") exports.Neat = Neat
