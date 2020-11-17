@@ -9,11 +9,26 @@
 
 <body>
     <div id="status"></div>
-    <pre id="preview"></pre>
-    <canvas id="myChart" width="400" height="150"></canvas>
+    <canvas id="myChart" width="400" height="100"></canvas>
+    <div id="main" style="border:1px solid #CCC;width: 600px;height:600px;"></div>
+    <div id="preview" style="word-break:break-all;"></div>
+    <script src="echarts.min.js"></script>
     <script src="Chart.min.js"></script>
     <script src="astar.js"></script>
     <script src="neatjs.js"></script>
+    <script type="text/javascript">
+        var myEChart = echarts.init(document.getElementById('main'));
+
+        var option = {
+            series: [{
+                type: 'graph', layout: 'force', animation: false, label: { show: true }, edgeSymbol: ['', 'arrow'], force: { edgeLength: 100, repulsion: 1000 },
+                data: [],
+                edges: [],
+            }]
+        };
+
+        myEChart.setOption(option);
+    </script>
     <script src="xor.js"></script>
 </body>
 

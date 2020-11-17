@@ -18,14 +18,14 @@ if (typeof window == "undefined") {
             const ff = net.FeedForwardNetwork(genome)
             for (let i in data) {
                 outputs = ff.activate(data[i].inputs)
-                genome.fitness -= Math.pow(outputs[0] - data[i].outputs[0], 4)
+                genome.fitness -= Math.pow(outputs[0] - data[i].outputs[0], 2)
             }
         })
         if (generation % 10 == 0) {
             genomes.sort((a, b) => { return a.fitness > b.fitness ? -1 : 1 })
             console.log("generation:", generation,
-                "nodes:", Object.keys(genomes[0].nodes).length,
-                "connections:", genomes[0].connections.length,
+                "nodes:", genomes[0].getActiveNodeNumber() + "/" + Object.keys(genomes[0].nodes).length,
+                "connections:", genomes[0].getActiveConnectionsNumber() + "/" + genomes[0].connections.length,
                 "maxFitness:", genomes[0].fitness)
         }
     }
@@ -39,7 +39,7 @@ if (typeof window == "undefined") {
             let winner = await pop.run(fitnessFunction, -1)
             js = winner.toJSON()
             // console.log(JSON.stringify(winner.toJSON()))
-            console.log("[winner] nodes:", Object.keys(js.nodes).length, "connects:", js.connections.length)
+            console.log("[winner] nodes:", winner.getActiveNodeNumber() + "/" + winner.nextNodeID, "connects:", winner.getActiveConnectionsNumber() + "/" + winner.connections.length)
         }
 
         { // test

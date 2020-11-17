@@ -23,18 +23,17 @@ function Neat() {
                 }
             },
 
-            nextGeneration(n) {
-                this.mutateWeight(n)
-                if (Math.random() < (n + 1) / 10 * 0.2) this.addNode()
-                if (Math.random() < (n + 1) / 10 * 0.2) this.addConnection()
+            nextGeneration(n, stdev) {
+                this.mutateWeight(n, stdev)
+                if (Math.random() < (n + 1) / this.population.genomeNumber) this.addNode()
+                if (Math.random() < (n + 1) / this.population.genomeNumber) this.removeNode()
+                if (Math.random() < (n + 1) / this.population.genomeNumber) this.addConnection()
             },
 
-            mutateWeight(n) {
+            mutateWeight(n, stdev) {
                 for (let i = 0; i < this.connections.length; i++) {
-                    if (Math.random() < 0.001) {
-                        this.connections[i].weight = neatRandom(-1, 1)
-                    } else if (Math.random() < (n + 1) / 10 * 0.2) {
-                        this.connections[i].weight += neatRandom(-1, 1) * (n + 1)
+                    if (Math.random() < (n + 1) / this.population.genomeNumber) {
+                        this.connections[i].weight += neatRandom(-1, 1) * Math.min((n + 1), 10)
                     }
                 }
             },
@@ -44,9 +43,16 @@ function Neat() {
                     if (c.length > 0) {
                         this.enabled = true
                         if (!this.enabled || !c.enabled) {
-                            if (Math.random() < 0.75) this.enabled = false
+                            if (Math.random() < 0.75) {
+                                this.enabled = false
+                                c.enabled = false
+                            }
                         }
-                        if (Math.random() < 0.5) this.weight = c.weight
+                        if (Math.random() < 0.5) {
+                            let x = c.weight
+                            c.weight = this.weight
+                            this.weight = x
+                        }
                     }
                 })
                 return this
@@ -67,18 +73,59 @@ function Neat() {
                 })
             },
             addNode() {
-                for (let index in this.nodes) {
-                    if (this.nodes[index].type == "input") continue
-
-                    let n = { index: this.nextNodeID++, type: "hidden", value: 0 }
-                    this.nodes[n.index] = n
-
-                    let c = this.connections[random(0, this.connections.length - 1)]
-                    c.enabled = false
-                    this.connections.push({ from: c.from, to: n.index, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
-                    this.connections.push({ from: n.index, to: c.to, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
-                    break
+                let outs = []
+                for (let i = 0; i < this.connections.length; i++) {
+                    if (this.nodes[this.connections[i].to] == undefined) continue
+                    if (this.nodes[this.connections[i].to].type != "output") continue
+                    outs.push(this.connections[i])
                 }
+
+                let n = { index: this.nextNodeID++, type: "hidden", value: 0 }
+                this.nodes[n.index] = n
+
+                let c = outs[random(0, outs.length - 1)]
+                c.enabled = false
+                this.connections.push({ from: c.from, to: n.index, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
+                this.connections.push({ from: n.index, to: c.to, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
+            },
+            removeNode() {
+                let indexs = []
+                for (let i in this.nodes) { if (this.nodes[i].type == "hidden") indexs.push(this.nodes[i].index) }
+                if (indexs.length == 0) return
+
+                let removeIndex = indexs[random(0, indexs.length - 1)]
+
+                let ins = [], outs = []
+                this.connections.map((c, i) => {
+                    if (c.to == removeIndex) {
+                        ins.push(c.from)
+                        this.connections.splice(i, 1)
+                    }
+                })
+                if (ins.length == 0) return
+                this.connections.map((c, i) => {
+                    if (c.from == removeIndex) {
+                        outs.push(c.to)
+                        this.connections.splice(i, 1)
+                    }
+                })
+
+                for (let o = 0; o < outs.length; o++) {
+                    for (let i = 0; i < ins.length; i++) {
+                        let has = false
+                        for (let c = 0; c < this.connections.length; c++) {
+                            if (this.connections[c].from == ins[i] && this.connections[c].to == outs[o]) {
+                                has = true
+                                this.connections[c].enabled = true
+                                break
+                            }
+                        }
+                        if (has) continue
+                        this.connections.push({ from: ins[i], to: outs[o], weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
+                    }
+                }
+
+                delete this.nodes[removeIndex]
             },
 
             toJSON() {
@@ -88,7 +135,8 @@ function Neat() {
                     fitness: 0,
                 }
                 for (let i in this.nodes) js.nodes[i] = { type: this.nodes[i].type }
-                js.connections = [...this.connections.filter(c => c.enabled).map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
+                // js.connections = [...this.connections.filter(c => c.enabled).map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
+                js.connections = [...this.connections.map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
                 js.fitness = this.fitness
                 return js
             },
@@ -106,6 +154,20 @@ function Neat() {
                     if (this.nextNodeID <= n.index) this.nextNodeID = parseInt(n.index) + 1
                 }
                 this.connections = [...js.connections.map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
+            },
+            getActiveNodeNumber() {
+                let nn = 0
+                for (let i in this.nodes) {
+                    nn++
+                }
+                return nn
+            },
+            getActiveConnectionsNumber() {
+                let cn = 0
+                for (let i in this.connections) {
+                    if (this.connections[i].enabled) cn++
+                }
+                return cn
             }
         }
     }
@@ -160,11 +222,13 @@ function Neat() {
                 getWinners(n) {
                     const mysort = (a, b) => {
                         if (a.fitness == b.fitness) {
-                            if (a.nextNodeID == b.nextNodeID) {
-                                if (a.connections.length == b.connections.length) return Math.random() - Math.random()
-                                return a.connections.length - b.connections.length
+                            let aid = a.getActiveNodeNumber(), bid = b.getActiveNodeNumber()
+                            if (aid == bid) {
+                                let c1 = a.getActiveConnectionsNumber(), c2 = b.getActiveConnectionsNumber()
+                                if (c1 == c2) return Math.random() < 0.5
+                                return c1 - c2
                             }
-                            return a.nextNodeID - b.nextNodeID
+                            return aid - bid
                         }
                         return b.fitness - a.fitness
                     }
@@ -177,6 +241,13 @@ function Neat() {
                 },
 
                 next() {
+                    let sum = 0
+                    for (let i = 0; i < this.genomes.length; i++) {
+                        sum += Math.pow(this.fitnessThreshold - this.genomes[i].fitness, 2)
+                    }
+                    let stdev = Math.sqrt(sum / this.genomes.length)
+                    let minStdev = stdev / this.fitnessThreshold
+
                     for (let i = 0; i < this.genomeNumber; i++) {
                         let a, b
                         if (i < 4) {
@@ -190,7 +261,7 @@ function Neat() {
                         } else {
                             this.genomes[i] = this.winners[random(0, 3)].clone()
                         }
-                        this.genomes[i].nextGeneration(i)
+                        this.genomes[i].nextGeneration(i, minStdev)
                     }
                 }
             }
@@ -216,6 +287,8 @@ function Neat() {
                         this.genome.nodes[n].value = 0
 
                         connections.filter(c => c.to == this.genome.nodes[n].index && c.enabled).map(c => {
+                            if (this.genome.nodes[n] == undefined) return
+                            if (this.genome.nodes[c.from] == undefined) return
                             this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
                         })
 
@@ -226,6 +299,8 @@ function Neat() {
                         this.genome.nodes[n].value = 0
 
                         connections.filter(c => c.to == n && c.enabled).map(c => {
+                            if (this.genome.nodes[n] == undefined) return
+                            if (this.genome.nodes[c.from] == undefined) return
                             this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
                         })
                         outputs.push(this.sigmoid(this.genome.nodes[n].value))

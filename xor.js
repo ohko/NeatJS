@@ -18,6 +18,18 @@ var myChart = new Chart(document.getElementById('myChart'), {
     }
 });
 
+function visualization(winner) {
+    document.getElementById("preview").innerHTML = JSON.stringify(winner.toJSON())
+    let data = [], links = []
+    for (let n in winner.nodes) {
+        data.push({ "draggable": true, "itemStyle": { "color": { input: "red", hidden: "black", output: "blue" }[winner.nodes[n].type] }, "name": winner.nodes[n].index + "", "symbolSize": 20 })
+    }
+    for (let n in winner.connections) {
+        links.push({ "lineStyle": { "color": winner.connections[n].enabled ? "black" : "gray", "width": winner.connections[n].enabled ? 2 : 1 }, "source": winner.connections[n].from + "", "target": winner.connections[n].to + "" })
+    }
+    myEChart.setOption({ series: { data: data, edges: links } })
+}
+
 const data = [
     { inputs: [0, 0], outputs: [0] },
     { inputs: [0, 1], outputs: [1] },
@@ -36,13 +48,15 @@ async function fitnessFunction(genomes, generation) {
         myChart.config.data.datasets[1].data.push({ x: generation, y: Object.keys(genomes[0].nodes).length })
         myChart.config.data.datasets[2].data.push({ x: generation, y: genomes[0].connections.length })
         myChart.update()
+
+        visualization(genomes[0])
     }
     genomes.forEach(genome => {
         genome.fitness = 4
         const ff = net.FeedForwardNetwork(genome)
         for (let i in data) {
             outputs = ff.activate(data[i].inputs)
-            genome.fitness -= Math.pow(outputs[0] - data[i].outputs[0], 4)
+            genome.fitness -= Math.pow(outputs[0] - data[i].outputs[0], 2)
         }
     })
     await net.sleep(10)
@@ -58,6 +72,7 @@ let js
         js = winner.toJSON()
         // console.log(winner.toJSON())
         console.log("[winner] nodes:", Object.keys(js.nodes).length, "connects:", js.connections.length)
+        visualization(winner)
     }
 
     // { // test
