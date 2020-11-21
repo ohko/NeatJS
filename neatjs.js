@@ -30,7 +30,7 @@ function Neat() {
 
             nextGeneration(n, dis) {
                 this.mutateWeight(n, dis)
-                if (dis < 2) return
+                if (dis < this.population.options.MaxDistance) return
 
                 let div = Math.max(1, this.population.options.AddNode + this.population.options.AddConnection)
                 let r = Math.random()
@@ -166,6 +166,7 @@ function Neat() {
                 AddNode: 0.2,
                 AddConnection: 0.5,
                 MutateWeight: 0.5,
+                MaxDistance: 2,
                 AllConnection: true
             }
 
@@ -196,7 +197,7 @@ function Neat() {
                             keep = this.options.KeepWinner
                             dis = 0
                         } else dis++
-                        if (dis > 2) keep = 0
+                        if (dis > this.options.MaxDistance) keep = 0
                         last = this.winners[0].fitness
 
                         this.next(dis)
