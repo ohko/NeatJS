@@ -8,6 +8,7 @@ var myChart = new Chart(document.getElementById('myChart'), {
         ]
     },
     options: {
+        animation: { duration: 0 },
         scales: {
             xAxes: [{ type: 'linear' }],
             yAxes: [
@@ -22,12 +23,26 @@ function visualization(winner) {
     document.getElementById("preview").innerHTML = JSON.stringify(winner.toJSON())
     let data = [], links = []
     for (let n in winner.nodes) {
-        data.push({ "draggable": true, "itemStyle": { "color": { input: "red", hidden: "black", output: "blue" }[winner.nodes[n].type] }, "name": winner.nodes[n].index + "", "symbolSize": 20 })
+        data.push({ "draggable": true, "itemStyle": { "color": { input: "red", hidden: "black", output: "blue" }[winner.nodes[n].type] }, "name": n + "", "symbolSize": 20 })
     }
     for (let n in winner.connections) {
         links.push({ "lineStyle": { "color": winner.connections[n].enabled ? "black" : "gray", "width": winner.connections[n].enabled ? 2 : 1 }, "source": winner.connections[n].from + "", "target": winner.connections[n].to + "" })
     }
     myEChart.setOption({ series: { data: data, edges: links } })
+}
+
+let gen = 0
+function preview(genome) {
+    status.innerHTML = "generation:" + gen +
+        " nodes:" + Object.keys(genome.nodes).length +
+        " connections:" + genome.connections.length +
+        " maxFitness:" + genome.fitness
+    myChart.config.data.datasets[0].data.push({ x: gen, y: genome.fitness })
+    myChart.config.data.datasets[1].data.push({ x: gen, y: Object.keys(genome.nodes).length })
+    myChart.config.data.datasets[2].data.push({ x: gen, y: genome.connections.length })
+    myChart.update()
+
+    visualization(genome)
 }
 
 const data = [
@@ -39,18 +54,8 @@ const data = [
 
 let status = document.getElementById("status")
 async function fitnessFunction(genomes, generation) {
-    if (generation % 10 == 0) {
-        status.innerHTML = "generation:" + generation +
-            " nodes:" + Object.keys(genomes[0].nodes).length +
-            " connections:" + genomes[0].connections.length +
-            " maxFitness:" + genomes[0].fitness
-        myChart.config.data.datasets[0].data.push({ x: generation, y: genomes[0].fitness })
-        myChart.config.data.datasets[1].data.push({ x: generation, y: Object.keys(genomes[0].nodes).length })
-        myChart.config.data.datasets[2].data.push({ x: generation, y: genomes[0].connections.length })
-        myChart.update()
-
-        visualization(genomes[0])
-    }
+    gen = generation
+    preview(genomes[0])
     genomes.forEach(genome => {
         genome.fitness = 4
         const ff = net.FeedForwardNetwork(genome)
@@ -63,7 +68,7 @@ async function fitnessFunction(genomes, generation) {
 }
 
 const net = Neat()
-const pop = net.Population({ inputNumber: data[0].inputs.length, outputNumber: data[0].outputs.length, genomeNumber: 100, fitnessThreshold: 4 })
+const pop = net.Population({ inputNumber: data[0].inputs.length, hiddenNumber: 0, outputNumber: data[0].outputs.length, genomeNumber: 10, fitnessThreshold: 4 })
 let js
 
 (async _ => {
@@ -72,7 +77,7 @@ let js
         js = winner.toJSON()
         // console.log(winner.toJSON())
         console.log("[winner] nodes:", Object.keys(js.nodes).length, "connects:", js.connections.length)
-        visualization(winner)
+        preview(winner)
     }
 
     // { // test
