@@ -189,8 +189,8 @@ function Neat() {
             if (!options) options = {
                 KeepWinner: 0,
                 AddNode: 0.2,
-                AddConnection: 0.5,
-                MutateWeight: 0.5,
+                AddConnection: 0.2,
+                MutateWeight: 0.2,
                 MaxDistance: 2,
                 AllConnection: true
             }
