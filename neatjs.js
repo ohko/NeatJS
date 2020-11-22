@@ -1,3 +1,27 @@
+
+const activateFunc = {
+    LOGISTIC: x => 1 / (1 + Math.exp(-x)),
+    TANH: x => Math.tanh(x),
+    IDENTITY: x => x,
+    STEP: x => x > 0 ? 1 : 0,
+    RELU: x => x > 0 ? x : 0,
+    SOFTSIGN: x => x / (1 + Math.abs(x)),
+    SINUSOID: x => Math.sin(x),
+    GAUSSIAN: x => Math.exp(-Math.pow(x, 2)),
+    BENT_IDENTITY: x => (Math.sqrt(Math.pow(x, 2) + 1) - 1) / 2 + x,
+    BIPOLAR: x => x > 0 ? 1 : -1,
+    BIPOLAR_SIGMOID: x => 2 / (1 + Math.exp(-x)) - 1,
+    HARD_TANH: x => Math.max(-1, Math.min(1, x)),
+    ABSOLUTE: x => Math.abs(x),
+    INVERSE: x => 1 - x,
+    SELU: x => {
+        var alpha = 1.6732632423543772848170429916717;
+        var scale = 1.0507009873554804934193349852946;
+        var fx = x > 0 ? x : alpha * Math.exp(x) - alpha;
+        return fx * scale;
+    },
+}
+
 function Neat() {
     function Genome({ population }) {
 
@@ -12,7 +36,7 @@ function Neat() {
                     this.nodes[this.nextNodeID++] = { type: "input", value: Math.random() };
                 }
                 for (let o = 0; o < this.population.outputNumber; o++) {
-                    this.nodes[this.nextNodeID] = { type: "output", value: 0 };
+                    this.nodes[this.nextNodeID] = { type: "output", value: 0, activate: "LOGISTIC" };
 
                     if (this.population.options.AllConnection) {
                         for (let i = 0; i < this.population.inputNumber; i++) {
@@ -98,7 +122,8 @@ function Neat() {
                     if (this.nodes[this.connections[i].to].type == "output") outs.push(this.connections[i])
                 }
 
-                this.nodes[this.nextNodeID] = { type: "hidden", value: 0 }
+                const as = Object.keys(activateFunc)
+                this.nodes[this.nextNodeID] = { type: "hidden", value: 0, activate: as[0, random(0, as.length - 1)] }
 
                 let c = outs[random(0, outs.length - 1)]
                 c.enabled = false
@@ -114,7 +139,7 @@ function Neat() {
                     fitness: 0,
                 }
                 for (let i in this.nodes) {
-                    js.nodes[i] = { type: this.nodes[i].type }
+                    js.nodes[i] = { type: this.nodes[i].type, activate: this.nodes[i].activate }
                 }
                 js.connections = [...this.connections.map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
                 js.nextNodeID = this.nextNodeID
@@ -129,7 +154,7 @@ function Neat() {
             },
             loadJSON(js) {
                 this.fitness = js.fitness
-                for (let i in js.nodes) this.nodes[i] = { type: js.nodes[i].type, value: 0 }
+                for (let i in js.nodes) this.nodes[i] = { type: js.nodes[i].type, value: 0, activate: js.nodes[i].activate }
                 this.nextNodeID = js.nextNodeID
                 this.connections = [...js.connections.map(x => { return { from: x.from, to: x.to, weight: x.weight, enabled: x.enabled, innovation: x.innovation } })]
             },
@@ -288,7 +313,8 @@ function Neat() {
                             this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
                         })
 
-                        this.genome.nodes[n].value = this.sigmoid(this.genome.nodes[n].value)
+                        // this.genome.nodes[n].value = this.sigmoid(this.genome.nodes[n].value)
+                        this.genome.nodes[n].value = activateFunc[this.genome.nodes[n].activate](this.genome.nodes[n].value)
                     }
                     for (let n in this.genome.nodes) {
                         if (this.genome.nodes[n].type != "output") continue
@@ -298,7 +324,8 @@ function Neat() {
                             if (this.genome.nodes[c.from] == undefined) return
                             this.genome.nodes[n].value += this.genome.nodes[c.from].value * c.weight
                         })
-                        outputs.push(this.sigmoid(this.genome.nodes[n].value))
+                        // outputs.push(this.sigmoid(this.genome.nodes[n].value))
+                        outputs.push(activateFunc[this.genome.nodes[n].activate](this.genome.nodes[n].value))
                     }
 
                     return outputs
