@@ -79,8 +79,8 @@ function Neat() {
                 this.connections.map(f => {
                     let c = b.connections.filter(t => t.innovation == f.innovation)
                     if (c.length > 0) {
-                        this.enabled = true
-                        c.enabled = true
+                        // this.enabled = true
+                        // c.enabled = true
                         if (!this.enabled || !c.enabled) {
                             if (Math.random() < 0.75) {
                                 this.enabled = false
@@ -123,12 +123,14 @@ function Neat() {
                 }
 
                 const as = Object.keys(activateFunc)
-                this.nodes[this.nextNodeID] = { type: "hidden", value: 0, activate: as[0, random(0, as.length - 1)] }
+                // this.nodes[this.nextNodeID] = { type: "hidden", value: 0, activate: as[0, random(0, as.length - 1)] }
+                this.nodes[this.nextNodeID] = { type: "hidden", value: 0, activate: "LOGISTIC" }
 
                 let c = outs[random(0, outs.length - 1)]
                 c.enabled = false
                 this.connections.push({ from: c.from, to: this.nextNodeID, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
-                this.connections.push({ from: this.nextNodeID, to: c.to, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
+                // this.connections.push({ from: this.nextNodeID, to: c.to, weight: neatRandom(-1, 1), enabled: true, innovation: this.population.nextInnovationID++ })
+                this.connections.push({ from: this.nextNodeID, to: c.to, weight: c.weight, enabled: true, innovation: this.population.nextInnovationID++ })
                 this.nextNodeID++
             },
             toJSON() {
